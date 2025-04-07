@@ -8,3 +8,4 @@ huggingface-hub==0.19.4
 streamlit
 chromadb
 langchain
+setuptools
