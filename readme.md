@@ -2,15 +2,16 @@
 
 ## Overview
 
-The **SHL Assessment Retrieval System** is a web application designed to query and retrieve relevant assessments from the SHL product catalog. It utilizes a Retrieval-Augmented Generation (RAG) model to provide users with accurate and contextually relevant test assessments based on their queries. The application is built using Streamlit for the frontend and integrates with ChromaDB for efficient data storage and retrieval.
+The **SHL Assessment Retrieval System** is a web application designed to query and retrieve relevant assessments from the SHL product catalog. The system employs a Retrieval-Augmented Generation (RAG) model that provides users with accurate and contextually relevant test assessments based on their queries. The application is built using Streamlit for the frontend and integrates with Pinecone for efficient vector storage and retrieval.
 
 ## Features
 
 - **Data Scraping**: Automatically scrapes assessment data from the SHL product catalog.
 - **Data Processing**: Preprocesses and chunks the scraped data for efficient querying.
-- **Embedding Model**: Utilizes the `SentenceTransformer` model for embedding queries and documents.
+- **Embedding Model**: Utilizes the `SentenceTransformer` model for encoding queries and documents.
 - **Diverse Query Results**: Returns diverse and relevant results based on user queries.
 - **User-Friendly Interface**: Built with Streamlit for an interactive user experience.
+- **Evaluation**: Includes an evaluation script to assess retrieval performance (using metrics such as Mean Recall@K and MAP@K).
 
 ## Technologies Used
 
@@ -18,20 +19,20 @@ The **SHL Assessment Retrieval System** is a web application designed to query a
 - Streamlit
 - Pandas
 - Sentence Transformers
-- ChromaDB
-- BeautifulSoup (for web scraping)
-- Requests
+- Pinecone (for vector storage and search)
+- python-dotenv (for loading environment variables)
+- (Optional) BeautifulSoup and Requests for web scraping
 
 ## Installation
 
 ### Prerequisites
 
-Make sure you have Python 3.7 or higher installed on your machine. You can download it from [python.org](https://www.python.org/downloads/).
-
+Ensure you have Python 3.7 or higher installed. You can download it from [python.org](https://www.python.org/downloads/).
+I used Python 3.10.16.
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/shl-assessment-retrieval.git
+git clone https://github.com/pravincoder/shl-assessment-retrieval.git
 cd shl-assessment-retrieval
 ```
 
@@ -87,5 +88,6 @@ shl-assessment-retrieval/
 ├── shl_scraper.py # Web scraper for fetching assessment data
 ├── evaluate.py # Evaluation script for assessing model performance
 ├── requirements.txt # List of dependencies
+├── .env  # Store Pinecone Key and (Convert text.env to .env and add keys)
 └── README.md # Project documentation
 ```

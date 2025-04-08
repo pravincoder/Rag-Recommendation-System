@@ -1,9 +1,9 @@
 import numpy as np
 from typing import List, Dict, Set
 import pandas as pd
-from rag import pre_processing_csv, build_chroma_store, ask_query
+from rag import pre_processing_csv, build_pinecone_store  # updated to use Pinecone store
 from sentence_transformers import SentenceTransformer
-import chromadb
+import os
 
 class Evaluator:
     def __init__(self, ground_truth: Dict[str, Set[str]]):
@@ -17,9 +17,6 @@ class Evaluator:
     def recall_at_k(self, retrieved: List[str], relevant: Set[str], k: int) -> float:
         """
         Calculate Recall@K for a single query.
-        retrieved: List of retrieved test IDs
-        relevant: Set of relevant test IDs
-        k: Number of top results to consider
         """
         if not relevant:
             return 0.0
@@ -31,50 +28,43 @@ class Evaluator:
     def average_precision_at_k(self, retrieved: List[str], relevant: Set[str], k: int) -> float:
         """
         Calculate Average Precision@K for a single query.
-        retrieved: List of retrieved test IDs
-        relevant: Set of relevant test IDs
-        k: Number of top results to consider
         """
         if not relevant:
             return 0.0
 
         score = 0.0
         num_relevant = 0
-        relevant_at_k = min(k, len(relevant))
-
-        for i in range(k):
+        for i in range(min(k, len(retrieved))):
             if retrieved[i] in relevant:
                 num_relevant += 1
-                precision_at_i = num_relevant / (i + 1)
-                score += precision_at_i
+                score += num_relevant / (i + 1)
+        normalization = min(k, len(relevant)) if len(relevant) > 0 else 1
+        return score / normalization
 
-        return score / relevant_at_k if relevant_at_k > 0 else 0.0
-
-    def evaluate(self, model: SentenceTransformer, collection: chromadb.Collection, k: int = 10) -> Dict[str, float]:
+    def evaluate(self, model: SentenceTransformer, index, k: int = 10) -> Dict[str, float]:
         """
-        Evaluate the system using Mean Recall@K and MAP@K.
-        Returns dictionary with evaluation metrics.
+        Evaluate the retrieval system using Mean Recall@K and MAP@K.
         """
         mean_recall = 0.0
         mean_ap = 0.0
 
+        # Loop over each query in the ground truth.
         for query, relevant_tests in self.ground_truth.items():
-            # Get results from the system
-            results = collection.query(
-                query_embeddings=[model.encode(query).tolist()],
-                n_results=k
-            )
+            # Generate the query embedding.
+            query_embedding = model.encode([query]).tolist()[0]
+            # Query the Pinecone index (top_k matches).
+            response = index.query(vector=query_embedding, top_k=k, include_metadata=True)
             
-            retrieved_tests = [meta['Test Name'] for meta in results['metadatas'][0]]
+            # Extract the "Test Name" from each match's metadata.
+            retrieved_tests = [
+                match["metadata"].get("Test Name", "") for match in response.get("matches", [])
+            ]
             
-            # Calculate metrics for this query
             recall = self.recall_at_k(retrieved_tests, relevant_tests, k)
             ap = self.average_precision_at_k(retrieved_tests, relevant_tests, k)
-            
             mean_recall += recall
             mean_ap += ap
 
-        # Calculate means
         mean_recall /= self.total_queries
         mean_ap /= self.total_queries
 
@@ -84,8 +74,7 @@ class Evaluator:
         }
 
 def main():
-    # Example ground truth data
-    
+    # Example ground truth data: mapping each query string to a set of relevant test names.
     ground_truth = {
         "I am hiring for Java developers who can also collaborate effectively with my business teams. Looking for an assessment(s) that can be completed in 40 minutes.": {            
             "Contact Center Customer Service + 8.0",
@@ -112,25 +101,33 @@ def main():
         },
     }
 
-    # Initialize evaluator
     evaluator = Evaluator(ground_truth)
 
     # Load and process data
     csv_path = "shl_products.csv"
     docs, metas = pre_processing_csv(csv_path)
-    collection, model = build_chroma_store(docs, metas)
 
-    # Evaluate with different K values
+    # Load the SentenceTransformer model
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    # Build the Pinecone vector store.
+    # Environment variables are used for the index name, API key, and region.
+    index, _, _, _, _ = build_pinecone_store(
+        docs,
+        metas,
+        model,
+        os.getenv("PINECONE_INDEX_NAME", "shl-test-index"),
+        os.getenv("PINECONE_API_KEY"),
+        os.getenv("PINECONE_ENV", "us-west-2")
+    )
+
+    # Evaluate with different values of K.
     k_values = [5, 10, 15]
-    results = {}
-
     for k in k_values:
         print(f"\nEvaluating with K={k}")
-        metrics = evaluator.evaluate(model, collection, k)
-        results[k] = metrics
+        metrics = evaluator.evaluate(model, index, k)
         print(f"Mean Recall@{k}: {metrics['Mean Recall@K']:.4f}")
         print(f"MAP@{k}: {metrics['MAP@K']:.4f}")
 
-
 if __name__ == "__main__":
-    main() 
+    main()
