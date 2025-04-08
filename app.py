@@ -2,8 +2,8 @@ import streamlit as st
 import tempfile
 
 # Use DuckDB instead of SQLite for ChromaDB
-from chromadb import PersistentClient
-
+import chromadb
+from chromadb.config import Settings
 # Import your RAG components
 from rag import build_chroma_store, pre_processing_csv, ask_query
 from sentence_transformers import SentenceTransformer
@@ -16,10 +16,12 @@ def load_data(csv_path):
     """Load and process data, caching the results."""
     docs, metas = pre_processing_csv(csv_path)
 
-    # ✅ Use PersistentClient instead of the old deprecated client
-    client = PersistentClient(path=temp_dir.name)
+    # Use DuckDB + Parquet instead of SQLite
+    client = chromadb.Client(Settings(
+        persist_directory=temp_dir.name  
+    ))
 
-    collection, model = build_chroma_store(docs, metas, persist_directory=temp_dir.name)
+    collection, model = build_chroma_store(docs, metas, client=client)
     return collection, model
 
 # Load your CSV data
