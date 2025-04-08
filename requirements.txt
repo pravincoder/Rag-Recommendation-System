@@ -9,4 +9,4 @@ streamlit
 chromadb
 langchain
 setuptools
-pysqlite3
+

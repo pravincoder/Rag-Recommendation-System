@@ -1,28 +1,36 @@
 import streamlit as st
-import pysqlite3
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+import tempfile
 
+# Use DuckDB instead of SQLite for ChromaDB
+from chromadb import PersistentClient
+
+# Import your RAG components
 from rag import build_chroma_store, pre_processing_csv, ask_query
 from sentence_transformers import SentenceTransformer
-import chromadb
+
+# Temporary directory for persistence in Streamlit Cloud
+temp_dir = tempfile.TemporaryDirectory()
 
 @st.cache_resource
 def load_data(csv_path):
     """Load and process data, caching the results."""
     docs, metas = pre_processing_csv(csv_path)
-    collection, model = build_chroma_store(docs, metas)
+
+    # ✅ Use PersistentClient instead of the old deprecated client
+    client = PersistentClient(path=temp_dir.name)
+
+    collection, model = build_chroma_store(docs, metas, persist_directory=temp_dir.name)
     return collection, model
 
-# Load data
-csv_path = "shl_products.csv"  # replace with your path
+# Load your CSV data
+csv_path = "shl_products.csv"  # Update path if needed
 collection, model = load_data(csv_path)
 
-# Streamlit app layout
-st.title("RAG Model Query Interface")
-st.write("Enter a query to get relevant test assessments.")
+# Streamlit UI
+st.title("🧠 RAG Model Query Interface")
+st.write("Enter a query to get relevant SHL test assessments.")
 
-# User input
+# Query input
 user_query = st.text_input("Enter your query:")
 
 if st.button("Submit"):
@@ -36,8 +44,8 @@ if st.button("Submit"):
                 st.markdown(f"🧪 **Test Name:** {meta['Test Name']}")
                 st.markdown(f"🔗 **Link:** [https://www.shl.com{meta['Test Link']}]")
                 st.markdown(f"📄 **Chunk:** {doc}")
-                st.write("-" * 80)  # Separator for each result
+                st.write("-" * 80)
         else:
-            st.write("No results found.")
+            st.warning("No results found.")
     else:
         st.warning("Please enter a query.")
